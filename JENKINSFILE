@@ -24,16 +24,16 @@ pipeline {
           python3 -m venv .venv
           . .venv/bin/activate
           pip install --upgrade pip
-          pip install flake8 flake8-formatter-checkstyle
+          pip install flake8
+    
           mkdir -p reports
-          flake8 src --format=checkstyle --output-file reports/flake8.xml || true
+          flake8 --exit-zero src > reports/flake8.out
         '''
         recordIssues(
-          tools: [checkStyle(name: 'Flake8', pattern: 'reports/flake8.xml')],
+          tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')],
           qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
         )
       }
     }
-
   }
 }
