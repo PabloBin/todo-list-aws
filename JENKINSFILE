@@ -32,12 +32,36 @@ pipeline {
           flake8 --version
 
           mkdir -p reports
+          # Solo analizamos /src
           flake8 --exit-zero src > reports/flake8.out
           wc -l reports/flake8.out || true
           ls -la reports/flake8.out
         '''
         recordIssues(
           tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')],
+          // “Quality gate” informativo: si hay 1+ issues => UNSTABLE (pero NO falla)
+          qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
+        )
+      }
+    }
+    stage('Security - Bandit') {
+      steps {
+        sh '''
+          set -eux
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install bandit
+    
+          mkdir -p reports
+          # Solo analizamos /src, y NO bloquea aunque encuentre cosas
+          bandit --exit-zero -r src -f sarif -o reports/bandit.sarif
+        '''
+    
+        // Publica el informe en Jenkins (Warnings NG)
+        recordIssues(
+          tools: [sarif(name: 'Bandit', pattern: 'reports/bandit.sarif')],
+          // “Quality gate” informativo: si hay 1+ issues => UNSTABLE (pero NO falla)
           qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
         )
       }
