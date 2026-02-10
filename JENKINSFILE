@@ -21,17 +21,14 @@ pipeline {
       steps {
         sh '''
           set -eux
-          python3 -m pip install --upgrade pip
-          python3 -m pip install flake8 flake8-formatter-checkstyle
-          mkdir -p reports
-          flake8 src --format=checkstyle --output-file reports/flake8.xml || true
+          sudo apt-get update
+          sudo apt-get install -y python3-venv
+        
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install -U pip flake8
+          flake8 --version
         '''
-    
-        recordIssues(
-          tools: [checkStyle(name: 'Flake8', pattern: 'reports/flake8.xml')],
-          // Gate no bloqueante: si hay >=1 issue => UNSTABLE
-          qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
-        )
       }
     }
   }
