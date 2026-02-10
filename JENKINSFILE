@@ -55,13 +55,12 @@ pipeline {
     
           mkdir -p reports
           # Solo analizamos /src, y NO bloquea aunque encuentre cosas
-          bandit --exit-zero -r src -f sarif -o reports/bandit.sarif
+          bandit --exit-zero -r src -f json -o reports/bandit.json
         '''
     
-        // Publica el informe en Jenkins (Warnings NG)
+        // Publica el informe
         recordIssues(
-          tools: [sarif(name: 'Bandit', pattern: 'reports/bandit.sarif')],
-          // “Quality gate” informativo: si hay 1+ issues => UNSTABLE (pero NO falla)
+          tools: [bandit(name: 'Bandit', pattern: 'reports/bandit.json')],
           qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
         )
       }
