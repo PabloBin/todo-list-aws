@@ -25,6 +25,12 @@ pipeline {
           . .venv/bin/activate
           pip install --upgrade pip
           pip install flake8
+
+          echo "PWD=$(pwd)"
+          echo "Listing src:"
+          ls -la src || true
+          echo "Flake8 version:"
+          flake8 --version
     
           mkdir -p reports
           flake8 --exit-zero src > reports/flake8.out
