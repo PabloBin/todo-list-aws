@@ -17,44 +17,40 @@ pipeline {
       }
     }
        
-    stage('Static Test - Flake8') {
+    stage('Static Test') {
       steps {
         sh '''
           set -eux
-          python3 -m venv .venv
+    
+          # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
+          fi
           . .venv/bin/activate
           pip install --upgrade pip
-          pip install flake8
-
-          rm -rf reports
+    
+          # 2) Instalar/actualizar herramientas dentro del venv
+          pip install flake8 bandit
+    
+          # 3) Carpeta de reportes 
           mkdir -p reports
+          # 4) Solo borramos los reportes de Flake8 y Bandit
+          rm -f reports/flake8.out reports/bandit.out
+    
+          # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
           flake8 --exit-zero src > reports/flake8.out
-        '''
-        recordIssues(
-          tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')]
-        )
-      }
-    }
-
-    stage('Static Test - Bandit') {
-      steps {
-        sh '''
-          set -eux
-          python3 -m venv .venv
-          . .venv/bin/activate
-          pip install --upgrade pip
-          pip install bandit
-
-          rm -rf reports
-          mkdir -p reports
+    
+          # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
           bandit --exit-zero -r src \
             -f custom -o reports/bandit.out \
             --msg-template "{abspath}:{line}: [{test_id}] {msg}"
         '''
-        recordIssues(
-          tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')]
-        )
+    
+        // Publicación de resultados en Jenkins (sin quality gates => build SUCCESS siempre)
+        recordIssues(tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')])
+        recordIssues(tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')])
       }
     }
+
   }
 }
