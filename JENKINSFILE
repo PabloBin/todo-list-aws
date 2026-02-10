@@ -16,5 +16,23 @@ pipeline {
         sh 'echo "Last commit:" && git log -1 --oneline'
       }
     }
+
+    stage('Static - Flake8') {
+      steps {
+        sh '''
+          set -eux
+          python3 -m pip install --upgrade pip
+          python3 -m pip install flake8 flake8-formatter-checkstyle
+          mkdir -p reports
+          flake8 src --format=checkstyle --output-file reports/flake8.xml || true
+        '''
+    
+        recordIssues(
+          tools: [checkStyle(name: 'Flake8', pattern: 'reports/flake8.xml')],
+          // Gate no bloqueante: si hay >=1 issue => UNSTABLE
+          qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
+        )
+      }
+    }
   }
 }
