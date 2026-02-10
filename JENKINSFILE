@@ -54,14 +54,20 @@ pipeline {
           pip install bandit
     
           mkdir -p reports
-          # Solo analizamos /src, y NO bloquea aunque encuentre cosas
-          bandit --exit-zero -r src -f json -o reports/bandit.json
+    
+          # Solo /src, no bloqueante
+          # Formato "custom" + msg-template para que el parser pyLint lo entienda bien
+          bandit --exit-zero -r src \
+            -f custom -o reports/bandit.out \
+            --msg-template "{abspath}:{line}: [{test_id}] {msg}"
         '''
     
-        // Publica el informe
         recordIssues(
-          tools: [bandit(name: 'Bandit', pattern: 'reports/bandit.json')],
-          qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
+          tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')],
+          // Gates NO bloqueantes: UNSTABLE al pasar umbral, nunca FAIL
+          qualityGates: [
+            [threshold: 1, type: 'TOTAL', unstable: true]
+          ]
         )
       }
     }
