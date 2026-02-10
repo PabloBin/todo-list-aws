@@ -1,11 +1,19 @@
 pipeline {
   agent any
+
   stages {
-    stage('Hello') {
+    stage('Get Code') {
       steps {
-        sh 'whoami'
-        sh 'uname -a'
-        echo 'Jenkinsfile leído desde el repo OK'
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: '*/develop']],
+          userRemoteConfigs: [[
+            url: 'git@github.com:PabloBin/todo-list-aws.git',
+            credentialsId: 'github-deploykey'
+          ]]
+        ])
+        sh 'echo "Branch:" && git rev-parse --abbrev-ref HEAD'
+        sh 'echo "Last commit:" && git log -1 --oneline'
       }
     }
   }
