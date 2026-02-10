@@ -16,59 +16,46 @@ pipeline {
         sh 'echo "Last commit:" && git log -1 --oneline'
       }
     }
-    stage('Static - Flake8') {
-      steps {
-        sh '''
-          set -eux
-          python3 -m venv .venv
-          . .venv/bin/activate
-          pip install --upgrade pip
-          pip install flake8
-          
-          echo "PWD=$(pwd)"
-          echo "Listing src:"
-          ls -la src || true
-          echo "Flake8 version:"
-          flake8 --version
-
-          mkdir -p reports
-          # Solo analizamos /src
-          flake8 --exit-zero src > reports/flake8.out
-          wc -l reports/flake8.out || true
-          ls -la reports/flake8.out
-        '''
-        recordIssues(
-          tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')],
-          // “Quality gate” informativo: si hay 1+ issues => UNSTABLE (pero NO falla)
-          qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
-        )
-      }
-    }
-    stage('Security - Bandit') {
-      steps {
-        sh '''
-          set -eux
-          python3 -m venv .venv
-          . .venv/bin/activate
-          pip install --upgrade pip
-          pip install bandit
+    stage('Static Test') {
+      stages {
     
-          mkdir -p reports
+        stage('Static - Flake8') {
+          steps {
+            sh '''
+              set -eux
+              python3 -m venv .venv
+              . .venv/bin/activate
+              pip install --upgrade pip
+              pip install flake8
     
-          # Solo /src, no bloqueante
-          # Formato "custom" + msg-template para que el parser pyLint lo entienda bien
-          bandit --exit-zero -r src \
-            -f custom -o reports/bandit.out \
-            --msg-template "{abspath}:{line}: [{test_id}] {msg}"
-        '''
+              mkdir -p reports
+              flake8 --exit-zero src > reports/flake8.out
+            '''
+            recordIssues(
+              tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')]
+            )
+          }
+        }
     
-        recordIssues(
-          tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')],
-          // Gates NO bloqueantes: UNSTABLE al pasar umbral, nunca FAIL
-          qualityGates: [
-            [threshold: 1, type: 'TOTAL', unstable: true]
-          ]
-        )
+        stage('Security - Bandit') {
+          steps {
+            sh '''
+              set -eux
+              python3 -m venv .venv
+              . .venv/bin/activate
+              pip install --upgrade pip
+              pip install bandit
+    
+              mkdir -p reports
+              bandit --exit-zero -r src \
+                -f custom -o reports/bandit.out \
+                --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+            '''
+            recordIssues(
+              tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')]
+            )
+          }
+        }
       }
     }
   }
