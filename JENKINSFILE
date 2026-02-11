@@ -27,9 +27,9 @@ pipeline {
             python3 -m venv .venv
           fi
           . .venv/bin/activate
+          
+          # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
           pip install --upgrade pip
-    
-          # 2) Instalar/actualizar herramientas dentro del venv
           pip install flake8 bandit
     
           # 3) Carpeta de reportes 
@@ -70,6 +70,48 @@ pipeline {
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
         '''
+      }
+    }
+
+    stage('Rest Test') {
+      steps {
+        sh '''
+          set -eux
+    
+          # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+    
+          # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+          pip install --upgrade pip
+          pip install -r src/requirements.txt
+          pip install pytest
+    
+          # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
+          STACK_NAME="staging-todo-list-aws"
+          BASE_URL="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+            --output text)"
+    
+          echo "BASE_URL=$BASE_URL"
+          export BASE_URL
+
+          # 4) Carpeta de reportes 
+          mkdir -p reports
+          # 5) Solo borramos los reportes de pytest
+          rm -f reports/pytest-integration.xml
+
+          # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
+          pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
+        '''
+      }
+      post {
+        always {
+          junit 'reports/pytest-integration.xml'
+        }
       }
     }
 
