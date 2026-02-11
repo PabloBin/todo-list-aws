@@ -121,7 +121,14 @@ pipeline {
 
     stage('Promote') {
       // 1) Comprobamos que estamos en la rama develop
-      when { branch 'develop' }
+      when {
+        expression {
+          return sh(
+            script: "git branch -r --contains HEAD | sed 's/^[ *]*//' | grep -qx 'origin/develop'",
+            returnStatus: true
+          ) == 0
+        }
+      }
     
       steps {
         // 2) Activo un ssh-agent temporal
