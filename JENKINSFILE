@@ -94,6 +94,7 @@ pipeline {
           BASE_URL="$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+            --region us-east-1 \
             --output text)"
     
           echo "BASE_URL=$BASE_URL"
