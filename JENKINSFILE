@@ -152,21 +152,21 @@ pipeline {
             git checkout -B master origin/master
 
             # COPIA DE SEGURIDAD: guardamos el Jenkinsfile de master (CD)
-            cp Jenkinsfile /tmp/Jenkinsfile.master
+            cp JENKINSFILE /tmp/JENKINSFILE.master
             
             # Merge real de develop a master
             # --no-ff fuerza un commit de merge para que quede rastro de la promoción
             git merge --no-ff origin/develop -m "Promote: merge develop -> master"
             
             # RESTAURACIÓN: volvemos a poner el Jenkinsfile de master (CD)
-            cp /tmp/Jenkinsfile.master Jenkinsfile
+            cp /tmp/JENKINSFILE.master JENKINSFILE
             
             # Preparamos el Jenkinsfile restaurado para commit (si ha cambiado)            
-            git add Jenkinsfile
+            git add JENKINSFILE
 
             # Creamos un commit SOLO si había cambios pendientes en Jenkinsfile
             # Si no había cambios, git commit fallaría y con '|| true' lo ignoramos
-            git commit -m "Promote: keep master Jenkinsfile (CD)" || true
+            git commit -m "Promote: keep master JENKINSFILE (CD)" || true
 
             # Subimos master actualizado a GitHub
             git push origin master
