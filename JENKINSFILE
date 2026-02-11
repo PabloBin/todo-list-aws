@@ -52,5 +52,26 @@ pipeline {
       }
     }
 
+    stage('Deploy') {
+      steps {
+        sh '''
+          set -eux
+    
+          # Verificar que hay credenciales en la EC2
+          aws sts get-caller-identity
+    
+          sam --version
+    
+          sam build
+    
+          # Deploy no interactivo usando el config-env staging
+          sam deploy \
+            --config-env staging \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+        '''
+      }
+    }
+
   }
 }
