@@ -75,7 +75,10 @@ pipeline {
           sam build
     
           # Deploy a PRODUCTION según samconfig.toml (env: staging)
-          sam deploy --config-env "$SAM_ENV" --no-confirm-changeset --no-fail-on-empty-changeset
+          sam deploy \
+          --config-env "$SAM_ENV" \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset
         '''
       }
     }
