@@ -10,14 +10,13 @@ pipeline {
 
     stage('Get Code') {
       steps {
-        // Descarga el código desde la rama master (lo controla el job "Pipeline from SCM")
+        // Descarga el código desde la rama master
         checkout scm
 
-        // Log de control (útil para evidenciar que estás en master)
         sh '''
           set -eux
-          sh 'echo "Branch:" && git branch -a --contains HEAD'
-          sh 'echo "Last commit:" && git log -1 --oneline'
+          echo "Branch:" && git branch -a --contains HEAD
+          echo "Last commit:" && git log -1 --oneline
         '''
       }
     }
@@ -45,17 +44,18 @@ pipeline {
       }
     }
 
-    stage('Rest Test (readonly)') {
+    stage('Rest Test') {
       steps {
         sh '''
           set -eux
 
-          # Reutiliza el venv si ya existe (más rápido en builds sucesivos)
+          # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
           if [ ! -d ".venv" ]; then
             python3 -m venv .venv
           fi
           . .venv/bin/activate
 
+          # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
           pip install --upgrade pip
           pip install -r src/requirements.txt
           pip install pytest
