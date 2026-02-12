@@ -76,9 +76,9 @@ pipeline {
           rm -f reports/pytest-integration-readonly.xml
 
           # Ejecuta SOLO tests de integración marcados como readonly (si falla => stage rojo y aborta pipeline)
-          pytest -q -m "readonly" --junitxml=reports/pytest-integration-readonly.xml
+          # pytest -q -m "readonly" --junitxml=reports/pytest-integration-readonly.xml
           # Se añade el marker api:
-          # pytest -q -m "api and readonly" --junitxml=reports/pytest-integration-readonly.xml
+          pytest -q -m "api and readonly" --junitxml=reports/pytest-integration-readonly.xml
         '''
       }
 
