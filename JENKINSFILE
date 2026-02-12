@@ -73,19 +73,19 @@ pipeline {
           # 4) Carpeta de reportes 
           mkdir -p reports
           # 5) Solo borramos los reportes de pytest
-          rm -f reports/pytest-integration-readonly.xml
+          rm -f reports/pytest-prod.xml
 
-          # Ejecuta SOLO tests de integración marcados como readonly (si falla => stage rojo y aborta pipeline)
+          # Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
           pytest -q \
-            -m "api and readonly" \
+            -k "test_api_listtodos or test_api_gettodo" \
             test/integration/todoApiTest.py \
-            --junitxml=reports/pytest-integration-readonly.xml
+            --junitxml=reports/pytest-prod.xml
         '''
       }
 
       post {
         always {
-          junit 'reports/pytest-integration-readonly.xml'
+          junit 'reports/pytest-prod.xml'
         }
       }
     }
