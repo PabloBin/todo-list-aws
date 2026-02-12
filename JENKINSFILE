@@ -1,6 +1,11 @@
 pipeline {
   agent any
 
+  environment {
+    SAM_ENV    = 'staging'
+    STACK_NAME = 'staging-todo-list-aws'
+  }
+
   stages {
     stage('Get Code') {
       steps {
@@ -62,16 +67,15 @@ pipeline {
     
           # Verificar que hay credenciales en la EC2
           aws sts get-caller-identity
-    
+
+          # Verifica SAM CLI
           sam --version
-    
+
+          # Build del proyecto SAM
           sam build
     
-          # Deploy no interactivo usando el config-env staging
-          sam deploy \
-            --config-env staging \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+          # Deploy a PRODUCTION según samconfig.toml (env: staging)
+          sam deploy --config-env "$SAM_ENV" --no-confirm-changeset --no-fail-on-empty-changeset
         '''
       }
     }
@@ -93,7 +97,6 @@ pipeline {
           pip install pytest
     
           # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
-          STACK_NAME="staging-todo-list-aws"
           BASE_URL="$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
