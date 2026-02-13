@@ -190,6 +190,53 @@ pipeline {
                 }
             }
         }
+        
+        stage('Promote') {
+            agent { label 'primary' }
+            
+            when {
+                expression {
+                    return sh(
+                        script: "git branch -r --contains HEAD | sed 's/^[ *]*//' | grep -qx 'origin/develop'",
+                        returnStatus: true
+                    ) == 0
+                }
+            }
+        
+            steps {
+                // 2) Activo un ssh-agent temporal
+                sshagent(credentials: ['github-deploykey']) {
+                    sh '''
+                        set -eux
 
+                        # Defino el autor e email del commit de merge
+                        git config user.name  "jenkins"
+                        git config user.email "pablo.conde789@comunidadunir.net"
+
+                        # Trae todas las ramas remotas (develop/master) y limpia ramas borradas
+                        # Esto evita merges con refs antiguas
+                        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune
+
+                        # Nos ponemos en master limpio
+                        git checkout -B master origin/master
+
+                        # Intentamos merge normal
+                        if ! git merge --no-ff origin/develop -m "Promote: merge develop -> master"; then
+                            echo "Merge had conflicts. Auto-resolving JENKINSFILE by keeping master version..."
+
+                            # Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master (ours)
+                            git checkout --ours JENKINSFILE || true
+                            git add JENKINSFILE || true
+
+                            # Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí (correcto)
+                            git commit -m "Promote: merge develop -> master (keep master JENKINSFILE)"
+                        fi
+
+                        # push a master
+                        git push origin master
+                    '''
+                }
+            }
+        }
     }
 }
