@@ -48,6 +48,7 @@ pipeline {
                         
                         // Recuperamos el código del stash
                         unstash 'src'
+                        
                         catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                             sh '''
                                 # -e: si algo falla, aborta
@@ -130,9 +131,6 @@ pipeline {
                         
                         // Guardamos la URL en stash para el agente "rest"
                         stash name: 'baseurl', includes: 'base_url.txt'
-                        
-                        //Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
-                        stash name: 'src', includes: '**/*'
                     }
                     post {
                         always { 
@@ -204,6 +202,18 @@ pipeline {
             }
         
             steps {
+                cleanWs()
+                
+                // Checkout de develop (para que el workspace tenga contexto)
+                checkout([
+                  $class: 'GitSCM',
+                  branches: [[name: '*/develop']],
+                  userRemoteConfigs: [[
+                    url: 'git@github.com:PabloBin/todo-list-aws.git',
+                    credentialsId: 'github-deploykey'
+                  ]]
+                ])
+                
                 // 2) Activo un ssh-agent temporal
                 sshagent(credentials: ['github-deploykey']) {
                     sh '''
