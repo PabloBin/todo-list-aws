@@ -4,11 +4,15 @@ pipeline {
   environment {
     SAM_ENV    = 'staging'
     STACK_NAME = 'staging-todo-list-aws'
+    AWS_REGION = 'us-east-1'
   }
 
   stages {
     stage('Get Code') {
       steps {
+        // Limpiamos el workspace
+        cleanWs()
+
         checkout([
           $class: 'GitSCM',
           branches: [[name: '*/develop']],
@@ -103,7 +107,7 @@ pipeline {
           BASE_URL="$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
-            --region us-east-1 \
+            --region "$AWS_REGION" \
             --output text)"
     
           echo "BASE_URL=$BASE_URL"
@@ -117,11 +121,6 @@ pipeline {
           # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
           pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
         '''
-      }
-      post {
-        always {
-          junit 'reports/pytest-integration.xml'
-        }
       }
     }
 
@@ -169,7 +168,12 @@ pipeline {
           '''
         }
       }
+      post {
+          always { 
+            // Limpiamos el workspace
+              cleanWs() 
+          }
+      }
     }
-
   }
 }
