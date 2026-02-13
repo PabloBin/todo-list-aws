@@ -1,0 +1,170 @@
+pipeline {
+      agent none
+
+      environment {
+        SAM_ENV    = 'staging'
+        STACK_NAME = 'staging-todo-list-aws'
+        AWS_REGION = 'us-east-1'
+      }
+
+      stages {
+        stage('Get Code') {
+            agent { label 'primary' }
+            steps {
+                checkout([
+                  $class: 'GitSCM',
+                  branches: [[name: '*/develop']],
+                  userRemoteConfigs: [[
+                    url: 'git@github.com:PabloBin/todo-list-aws.git',
+                    credentialsId: 'github-deploykey'
+                  ]]
+                ])
+                sh 'echo "Branch:" && git branch -a --contains HEAD'
+                sh 'echo "Last commit:" && git log -1 --oneline'
+                
+                // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
+                stash name: 'src', includes: '**/*'
+            }
+        }
+        stage('Static + Deploy (parallel)') {
+            parallel {
+                stage('Static Test') {
+                    agent { label 'static' }
+                    steps {
+                        // Limpiamos el workspace del agente
+                        deleteDir()
+                        
+                        // Recuperamos el código del stash
+                        unstash 'src'
+                        catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                            sh '''
+                                # -e: si algo falla, aborta
+                                # -u: error si usas variables no definidas
+                                # -x: muestra comandos en el log
+                                set -eux
+
+                                # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                                if [ ! -d ".venv" ]; then
+                                    python3 -m venv .venv
+                                fi
+                                . .venv/bin/activate
+
+                                # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
+                                pip install --upgrade pip
+                                pip install flake8 bandit
+
+                                # 3) Carpeta de reportes 
+                                mkdir -p reports
+                                # 4) Solo borramos los reportes de Flake8 y Bandit
+                                rm -f reports/flake8.out reports/bandit.out
+
+                                # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
+                                flake8 --exit-zero src > reports/flake8.out
+
+                                # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
+                                bandit --exit-zero -r src \
+                                    -f custom -o reports/bandit.out \
+                                    --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                            '''
+                        }
+
+                        // Publicación de resultados en Jenkins (sin quality gates => build SUCCESS siempre)
+                        recordIssues(tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')])
+                        recordIssues(tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')])
+                    }
+                }
+
+                stage('Deploy') {
+                    agent { label 'primary' }
+                    steps {
+                        // Limpiar para evitar restos
+                        deleteDir()
+
+                        // Recuperar código
+                        unstash 'src
+                        
+                        sh '''
+                            set -eux
+
+                            # Verificar que hay credenciales en la EC2
+                            aws sts get-caller-identity
+
+                            # Verifica SAM CLI
+                            sam --version
+
+                            # Build del proyecto SAM
+                            sam build
+
+                            # Deploy a PRODUCTION según samconfig.toml (env: staging)
+                            sam deploy \
+                                --config-env "$SAM_ENV" \
+                                --no-confirm-changeset \
+                                --no-fail-on-empty-changeset
+                            
+                            # Sacar BaseUrlApi del stack para la etapa Rest Test
+                            aws cloudformation describe-stacks \
+                                --stack-name "$STACK_NAME" \
+                                --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+                                --output text > base_url.txt
+                    
+                            echo "BASE_URL=$(cat base_url.txt)"
+                        '''
+                        
+                        // Guardamos la URL en stash para el agente "rest"
+                        stash name: 'baseurl', includes: 'base_url.txt'
+                        
+                        Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
+                        // stash name: 'src', includes: '**/*'
+                    }
+                }
+            }
+        }
+
+        stage('Rest Test') {
+            agent { label 'rest' }
+            steps {
+                // Limpiar para evitar restos
+                deleteDir()
+
+                // Recuperar código
+                unstash 'src
+                
+                //Recuperamos el fichero donde hemos guardado la url
+                unstash 'baseurl'
+                
+                sh '''
+                    set -eux
+
+                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                    if [ ! -d ".venv" ]; then
+                        python3 -m venv .venv
+                    fi
+                    . .venv/bin/activate
+
+                    # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                    pip install --upgrade pip
+                    pip install -r src/requirements.txt
+                    pip install pytest
+
+                    # Base URL desde el deploy
+                    export BASE_URL="$(cat base_url.txt)"
+                    echo "BASE_URL=$BASE_URL"
+
+                    # 4) Carpeta de reportes 
+                    mkdir -p reports
+                    # 5) Solo borramos los reportes de pytest
+                    rm -f reports/pytest-integration.xml
+
+                    # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
+                    pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'reports/pytest-integration.xml'
+                }
+            }
+        }
+
+    }
+}
