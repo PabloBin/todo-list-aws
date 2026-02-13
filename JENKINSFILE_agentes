@@ -1,0 +1,145 @@
+pipeline {
+    agent none
+    
+    //EVITA que Jenkins haga checkout automático en cada agente/stage
+    options {
+        skipDefaultCheckout()
+    }
+    
+    environment {
+        SAM_ENV    = 'production'
+        STACK_NAME = 'production-todo-list-aws'
+        AWS_REGION = 'us-east-1'
+    }
+
+    stages {
+
+        stage('Get Code') {
+             agent { label 'primary' }
+             steps {
+                // Limpiamos el workspace del agente
+                cleanWs()
+                
+                // Descarga el código desde la rama master
+                checkout scm
+
+                sh '''
+                    set -eux
+                    echo "Branch:" && git branch -a --contains HEAD
+                    echo "Last commit:" && git log -1 --oneline
+                '''
+                
+                // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
+                stash name: 'src', includes: '**/*'
+            }
+            post {
+                always { 
+                    cleanWs() 
+                }
+            }
+        }
+
+        stage('Deploy') {
+            agent { label 'primary' }
+            steps {
+                // Limpiamos el workspace del agente
+                cleanWs()
+                
+                // Recuperamos el código del stash
+                unstash 'src'
+                
+                sh '''
+                    set -eux
+
+                    # Verificar que hay credenciales en la EC2
+                    aws sts get-caller-identity
+
+                    # Verifica SAM CLI
+                    sam --version
+
+                    # Build del proyecto SAM
+                    sam build
+
+                    # Deploy a PRODUCTION según samconfig.toml (env: production)
+                    sam deploy \
+                        --config-env "$SAM_ENV" \
+                        --no-confirm-changeset \
+                        --no-fail-on-empty-changeset
+                    
+                    # Sacar BaseUrlApi del stack para la etapa Rest Test
+                    aws cloudformation describe-stacks \
+                        --stack-name "$STACK_NAME" \
+                        --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+                        --region "$AWS_REGION" \
+                        --output text > base_url.txt
+            
+                    echo "BASE_URL=$(cat base_url.txt)"
+                '''
+                
+                // Guardamos la URL en stash para el agente "rest"
+                stash name: 'baseurl', includes: 'base_url.txt'
+                
+                //Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
+                stash name: 'src', includes: '**/*'
+            }
+            post {
+                always { 
+                    cleanWs() 
+                }
+            }
+        }
+
+        stage('Rest Test') {
+             agent { label 'rest' }
+            steps {
+                // Limpiamos el workspace del agente
+                cleanWs()
+                
+                // Recuperar código
+                unstash 'src'
+                
+                //Recuperamos el fichero donde hemos guardado la url
+                unstash 'baseurl'
+                
+                sh '''
+                    set -eux
+
+                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                    if [ ! -d ".venv" ]; then
+                        python3 -m venv .venv
+                    fi
+                    . .venv/bin/activate
+
+                    # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                    pip install --upgrade pip
+                    pip install -r src/requirements.txt
+                    pip install pytest
+
+                     # Base URL desde el deploy
+                    export BASE_URL="$(cat base_url.txt)"
+                    echo "BASE_URL=$BASE_URL"
+
+                    # 4) Carpeta de reportes 
+                    mkdir -p reports
+                    # 5) Solo borramos los reportes de pytest
+                    rm -f reports/pytest-prod.xml
+                    
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    # 6) Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
+                    pytest -q \
+                        -k "test_api_listtodos or test_api_gettodo" \
+                        test/integration/todoApiTest.py \
+                        --junitxml=reports/pytest-prod.xml
+                    }
+                '''
+            }
+
+            post {
+                always {
+                    junit 'reports/pytest-prod.xml'
+                    cleanWs() 
+                }
+            }
+        }
+    }
+}
