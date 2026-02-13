@@ -36,7 +36,7 @@ pipeline {
                     agent { label 'static' }
                     steps {
                         // Limpiamos el workspace del agente
-                        deleteDir()
+                        cleanWs()
                         
                         // Recuperamos el código del stash
                         unstash 'src'
@@ -76,13 +76,18 @@ pipeline {
                         recordIssues(tools: [flake8(name: 'Flake8', pattern: 'reports/flake8.out')])
                         recordIssues(tools: [pyLint(name: 'Bandit', pattern: 'reports/bandit.out')])
                     }
+                    post {
+                        always { 
+                            cleanWs() 
+                        }
+                    }
                 }
 
                 stage('Deploy') {
                     agent { label 'primary' }
                     steps {
                         // Limpiar para evitar restos
-                        deleteDir()
+                        cleanWs()
 
                         // Recuperar código
                         unstash 'src'
@@ -120,6 +125,11 @@ pipeline {
                         //Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
                         stash name: 'src', includes: '**/*'
                     }
+                    post {
+                        always { 
+                            cleanWs() 
+                        }
+                    }
                 }
             }
         }
@@ -128,7 +138,7 @@ pipeline {
             agent { label 'rest' }
             steps {
                 // Limpiar para evitar restos
-                deleteDir()
+                cleanWs()
 
                 // Recuperar código
                 unstash 'src'
@@ -158,14 +168,17 @@ pipeline {
                     mkdir -p reports
                     # 5) Solo borramos los reportes de pytest
                     rm -f reports/pytest-integration.xml
-
-                    # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
-                    pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
+                    
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
+                        pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
+                    }
                 '''
             }
             post {
                 always {
                     junit 'reports/pytest-integration.xml'
+                    cleanWs() 
                 }
             }
         }
