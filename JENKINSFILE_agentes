@@ -81,7 +81,7 @@ pipeline {
                         deleteDir()
 
                         // Recuperar código
-                        unstash 'src
+                        unstash 'src'
                         
                         sh '''
                             set -eux
