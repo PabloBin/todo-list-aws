@@ -113,8 +113,8 @@ pipeline {
                         // Guardamos la URL en stash para el agente "rest"
                         stash name: 'baseurl', includes: 'base_url.txt'
                         
-                        Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
-                        // stash name: 'src', includes: '**/*'
+                        //Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
+                        stash name: 'src', includes: '**/*'
                     }
                 }
             }
