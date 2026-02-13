@@ -15,6 +15,9 @@ pipeline {
         stage('Get Code') {
             agent { label 'primary' }
             steps {
+                // Limpiamos el workspace del agente
+                cleanWs()
+
                 checkout([
                   $class: 'GitSCM',
                   branches: [[name: '*/develop']],
@@ -28,6 +31,11 @@ pipeline {
                 
                 // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
                 stash name: 'src', includes: '**/*'
+            }
+            post {
+                always { 
+                    cleanWs() 
+                }
             }
         }
         stage('Static + Deploy (parallel)') {
