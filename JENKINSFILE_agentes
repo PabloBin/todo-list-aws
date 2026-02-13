@@ -1,13 +1,17 @@
 pipeline {
-      agent none
-
-      environment {
+    agent none
+    
+    //EVITA que Jenkins haga checkout automático en cada agente/stage
+    options {
+        skipDefaultCheckout()
+    }
+    environment {
         SAM_ENV    = 'staging'
         STACK_NAME = 'staging-todo-list-aws'
         AWS_REGION = 'us-east-1'
-      }
+    }
 
-      stages {
+    stages {
         stage('Get Code') {
             agent { label 'primary' }
             steps {
