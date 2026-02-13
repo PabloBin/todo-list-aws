@@ -1,5 +1,10 @@
 pipeline {
   agent any
+  
+  //EVITA que Jenkins haga checkout automático en cada agente/stage
+  options {
+      skipDefaultCheckout()
+  }
 
   environment {
     SAM_ENV    = 'staging'
