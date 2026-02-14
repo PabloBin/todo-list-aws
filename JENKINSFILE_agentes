@@ -23,7 +23,6 @@ pipeline {
                 sh '''
                     whoami
                     hostname
-                    env | egrep '^(WORKSPACE|NODE_NAME|EXECUTOR_NUMBER)='
                 '''
                 
                 // Descarga el código desde la rama master
@@ -50,6 +49,11 @@ pipeline {
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
+                
+                 sh '''
+                    whoami
+                    hostname
+                '''
                 
                 // Recuperamos el código del stash
                 unstash 'src'
@@ -100,6 +104,11 @@ pipeline {
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
+                
+                 sh '''
+                    whoami
+                    hostname
+                '''
                 
                 // Recuperar código
                 unstash 'src'
