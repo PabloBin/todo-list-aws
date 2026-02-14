@@ -239,8 +239,11 @@ pipeline {
 
                             # Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master (ours)
                             git checkout --ours JENKINSFILE || true
+                            git checkout --ours JENKINSFILE_agentes || true
+                            
                             git add JENKINSFILE || true
-
+                            git add JENKINSFILE_agentes || true
+                            
                             # Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí (correcto)
                             git commit -m "Promote: merge develop -> master (keep master JENKINSFILE)"
                         fi
