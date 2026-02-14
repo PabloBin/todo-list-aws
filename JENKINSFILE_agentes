@@ -17,7 +17,12 @@ pipeline {
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
-
+                
+                sh '''
+                    whoami
+                    hostname
+                '''
+                
                 checkout([
                   $class: 'GitSCM',
                   branches: [[name: '*/develop']],
@@ -46,6 +51,11 @@ pipeline {
                         // Limpiamos el workspace del agente
                         cleanWs()
                         
+                        sh '''
+                            whoami
+                            hostname
+                        '''
+                
                         // Recuperamos el código del stash
                         unstash 'src'
                         
@@ -98,6 +108,11 @@ pipeline {
                         // Limpiar para evitar restos
                         cleanWs()
 
+                        sh '''
+                            whoami
+                            hostname
+                        '''
+                
                         // Recuperar código
                         unstash 'src'
                         
@@ -147,6 +162,11 @@ pipeline {
                 // Limpiar para evitar restos
                 cleanWs()
 
+                sh '''
+                    whoami
+                    hostname
+                '''
+                
                 // Recuperar código
                 unstash 'src'
                 
@@ -193,6 +213,11 @@ pipeline {
             agent { label 'primary' }
             steps {
                 cleanWs()
+                
+                sh '''
+                    whoami
+                    hostname
+                '''
                 
                 // Checkout de develop (para que el workspace tenga contexto)
                 checkout([
