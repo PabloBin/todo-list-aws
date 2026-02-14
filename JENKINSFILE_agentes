@@ -191,16 +191,6 @@ pipeline {
         
         stage('Promote') {
             agent { label 'primary' }
-            
-            when {
-                expression {
-                    return sh(
-                        script: "git branch -r --contains HEAD | sed 's/^[ *]*//' | grep -qx 'origin/develop'",
-                        returnStatus: true
-                    ) == 0
-                }
-            }
-        
             steps {
                 cleanWs()
                 
@@ -214,6 +204,19 @@ pipeline {
                   ]]
                 ])
                 
+                //Compruebo que estoy en la rama develop
+                script {
+                    def isDevelop = (sh(
+                        script: "git branch -r --contains HEAD | sed 's/^[ *]*//' | grep -qx 'origin/develop'", 
+                        returnStatus: true
+                    ) == 0)
+
+                    if (!isDevelop) {
+                        echo "Promote skipped: build no viene de develop."
+                        return
+                    }
+                }
+    
                 // 2) Activo un ssh-agent temporal
                 sshagent(credentials: ['github-deploykey']) {
                     sh '''
