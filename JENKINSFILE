@@ -12,6 +12,7 @@ pipeline {
         SAM_ENV    = 'staging'
         STACK_NAME = 'staging-todo-list-aws'
         AWS_REGION = 'us-east-1'
+        CONFIG_BRANCH = 'staging'
     }
 
     stages {
@@ -31,6 +32,15 @@ pipeline {
                 
                 sh 'echo "Branch:" && git branch -a --contains HEAD'
                 sh 'echo "Last commit:" && git log -1 --oneline'
+                
+                git clone --depth 1 --branch "${CONFIG_BRANCH}" \
+                    https://github.com/PabloBin/todo-list-aws-config.git config-repo
+
+                cp config-repo/samconfig.toml samconfig.toml
+                
+                # Verificación del samconfig.toml
+                ls -la samconfig.toml
+                head -n 50 samconfig.toml || true
             }
         }
        
