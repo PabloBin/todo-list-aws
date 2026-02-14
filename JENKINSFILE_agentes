@@ -38,13 +38,15 @@ pipeline {
                 // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
                 stash name: 'src',
                     includes: '**/*',
-                    excludes: '''
-                        **/.git/**,
-                        **/.venv/**,
-                        **/.aws-sam/**,
-                        **/reports/**,
-                        **/__pycache__/**,
-                        **/*.pyc
+                    excludes: 
+                        '''
+                            **/.git/**,
+                            **/.venv/**,
+                            **/.aws-sam/**,
+                            **/reports/**,
+                            **/__pycache__/**,
+                            **/*.pyc
+                        '''
             }
             post {
                 always { 
