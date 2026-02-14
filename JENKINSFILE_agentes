@@ -4,6 +4,8 @@ pipeline {
     //EVITA que Jenkins haga checkout automático en cada agente/stage
     options {
         skipDefaultCheckout()
+        disableConcurrentBuilds()
+        timestamps()
     }
     
     environment {
@@ -151,7 +153,7 @@ pipeline {
 
             post {
                 always {
-                    junit 'reports/pytest-prod.xml'
+                    junit testResults: 'reports/pytest-prod.xml', allowEmptyResults: true
                     cleanWs() 
                 }
             }

@@ -1,93 +1,104 @@
 pipeline {
-  agent any
-
-  environment {
-    SAM_ENV    = 'production'
-    STACK_NAME = 'production-todo-list-aws'
-  }
-
-  stages {
-
-    stage('Get Code') {
-      steps {
-        // Descarga el código desde la rama master
-        checkout scm
-
-        sh '''
-          set -eux
-          echo "Branch:" && git branch -a --contains HEAD
-          echo "Last commit:" && git log -1 --oneline
-        '''
-      }
+    agent any
+    
+    //EVITA que Jenkins haga checkout automático en cada agente/stage
+    options { 
+        skipDefaultCheckout() 
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    environment {
+        SAM_ENV    = 'production'
+        STACK_NAME = 'production-todo-list-aws'
     }
 
-    stage('Deploy') {
-      steps {
-        sh '''
-          set -eux
+    stages {
 
-          # Verificar que hay credenciales en la EC2
-          aws sts get-caller-identity
+        stage('Get Code') {
+            steps {
+                 // Limpiamos el workspace del agente
+                cleanWs()
+                
+                // Descarga el código desde la rama master
+                checkout scm
 
-          # Verifica SAM CLI
-          sam --version
-
-          # Build del proyecto SAM
-          sam build
-
-          # Deploy a PRODUCTION según samconfig.toml (env: production)
-          sam deploy \
-          --config-env "$SAM_ENV" \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset
-        '''
-      }
-    }
-
-    stage('Rest Test') {
-      steps {
-        sh '''
-          set -eux
-
-          # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-          if [ ! -d ".venv" ]; then
-            python3 -m venv .venv
-          fi
-          . .venv/bin/activate
-
-          # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
-          pip install --upgrade pip
-          pip install -r src/requirements.txt
-          pip install pytest
-
-          # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
-          BASE_URL=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
-            --region us-east-1 \
-            --output text)
-
-          echo "BASE_URL=$BASE_URL"
-          export BASE_URL
-
-          # 4) Carpeta de reportes 
-          mkdir -p reports
-          # 5) Solo borramos los reportes de pytest
-          rm -f reports/pytest-prod.xml
-
-          # Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
-          pytest -q \
-            -k "test_api_listtodos or test_api_gettodo" \
-            test/integration/todoApiTest.py \
-            --junitxml=reports/pytest-prod.xml
-        '''
-      }
-
-      post {
-        always {
-          junit 'reports/pytest-prod.xml'
+                sh '''
+                    set -eux
+                    echo "Branch:" && git branch -a --contains HEAD
+                    echo "Last commit:" && git log -1 --oneline
+                '''
+            }
         }
-      }
+
+        stage('Deploy') {
+            steps {
+                sh '''
+                    set -eux
+
+                    # Verificar que hay credenciales en la EC2
+                    aws sts get-caller-identity
+
+                    # Verifica SAM CLI
+                    sam --version
+
+                    # Build del proyecto SAM
+                    sam build
+
+                    # Deploy a PRODUCTION según samconfig.toml (env: production)
+                    sam deploy \
+                        --config-env "$SAM_ENV" \
+                        --no-confirm-changeset \
+                        --no-fail-on-empty-changeset
+                '''
+            }
+        }
+
+        stage('Rest Test') {
+            steps {
+                sh '''
+                    set -eux
+
+                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                    if [ ! -d ".venv" ]; then
+                        python3 -m venv .venv
+                    fi
+                    . .venv/bin/activate
+
+                    # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                    pip install --upgrade pip
+                    pip install -r src/requirements.txt
+                    pip install pytest
+
+                    # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
+                    BASE_URL=$(aws cloudformation describe-stacks \
+                                --stack-name "$STACK_NAME" \
+                                --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+                                --region us-east-1 \
+                                --output text)
+
+                    echo "BASE_URL=$BASE_URL"
+                    export BASE_URL
+
+                    # 4) Carpeta de reportes 
+                    mkdir -p reports
+                    
+                    # 5) Solo borramos los reportes de pytest
+                    rm -f reports/pytest-prod.xml
+
+                    # Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
+                    pytest -q \
+                        -k "test_api_listtodos or test_api_gettodo" \
+                        test/integration/todoApiTest.py \
+                        --junitxml=reports/pytest-prod.xml
+                '''
+            }
+
+            post {
+                always {
+                    junit testResults: 'reports/pytest-prod.xml', allowEmptyResults: true
+                    cleanWs() 
+                }
+            }
+        }
     }
-  }
 }
