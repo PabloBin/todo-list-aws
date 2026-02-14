@@ -40,7 +40,10 @@ pipeline {
 
                     # Verifica SAM CLI
                     sam --version
-
+                    
+                    # Valida el template
+                    sam validate
+                    
                     # Build del proyecto SAM
                     sam build
 

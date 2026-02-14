@@ -1,5 +1,5 @@
 pipeline {
-    agent none
+    agent any
     
     //EVITA que Jenkins haga checkout automático en cada agente/stage
     options {
@@ -17,7 +17,6 @@ pipeline {
     stages {
 
         stage('Get Code') {
-             agent { label 'primary' }
              steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
@@ -37,7 +36,15 @@ pipeline {
                 '''
                 
                 // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
-                stash name: 'src', includes: '**/*'
+                stash name: 'src',
+                    includes: '**/*',
+                    excludes: '''
+                        **/.git/**,
+                        **/.venv/**,
+                        **/.aws-sam/**,
+                        **/reports/**,
+                        **/__pycache__/**,
+                        **/*.pyc
             }
             post {
                 always { 
@@ -47,7 +54,6 @@ pipeline {
         }
 
         stage('Deploy') {
-            agent { label 'primary' }
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
@@ -68,7 +74,10 @@ pipeline {
 
                     # Verifica SAM CLI
                     sam --version
-
+                    
+                    # Valida el template
+                    sam validate
+                    
                     # Build del proyecto SAM
                     sam build
 
@@ -90,9 +99,6 @@ pipeline {
                 
                 // Guardamos la URL en stash para el agente "rest"
                 stash name: 'baseurl', includes: 'base_url.txt'
-                
-                //Se han guardado datos en el samconfig hacemos un stash del código para que el etapa de promote se mergen los cambios hechos
-                stash name: 'src', includes: '**/*'
             }
             post {
                 always { 
@@ -117,14 +123,12 @@ pipeline {
                 
                 //Recuperamos el fichero donde hemos guardado la url
                 unstash 'baseurl'
+                
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     sh '''
                         set -eux
 
-                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                        if [ ! -d ".venv" ]; then
-                            python3 -m venv .venv
-                        fi
+                        python3 -m venv .venv
                         . .venv/bin/activate
 
                         # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
