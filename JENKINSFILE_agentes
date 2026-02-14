@@ -1,9 +1,11 @@
 pipeline {
-    agent none
+    agent any
     
     //EVITA que Jenkins haga checkout automático en cada agente/stage
     options {
         skipDefaultCheckout()
+        disableConcurrentBuilds()
+        timestamps()
     }
     environment {
         SAM_ENV    = 'staging'
@@ -13,7 +15,6 @@ pipeline {
 
     stages {
         stage('Get Code') {
-            agent { label 'primary' }
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
@@ -82,7 +83,7 @@ pipeline {
                                 rm -f reports/flake8.out reports/bandit.out
 
                                 # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
-                                flake8 --exit-zero src > reports/flake8.out
+                                flake8 --exit-zero src > reports/flake8.out 2>&1
 
                                 # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
                                 bandit --exit-zero -r src \
@@ -103,7 +104,6 @@ pipeline {
                 }
 
                 stage('Deploy') {
-                    agent { label 'primary' }
                     steps {
                         // Limpiar para evitar restos
                         cleanWs()
@@ -172,6 +172,7 @@ pipeline {
                 
                 //Recuperamos el fichero donde hemos guardado la url
                 unstash 'baseurl'
+                
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     sh '''
                         set -eux
@@ -210,7 +211,6 @@ pipeline {
         }
         
         stage('Promote') {
-            agent { label 'primary' }
             steps {
                 cleanWs()
                 
