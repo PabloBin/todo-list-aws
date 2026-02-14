@@ -36,14 +36,18 @@ pipeline {
                 sh 'echo "Branch:" && git branch -a --contains HEAD'
                 sh 'echo "Last commit:" && git log -1 --oneline'
                 
-                git clone --depth 1 --branch "${CONFIG_BRANCH}" \
+                sh '''
+                    set -eux
+                    rm -rf config-repo
+                    git clone --depth 1 --branch "$CONFIG_BRANCH" \
                     https://github.com/PabloBin/todo-list-aws-config.git config-repo
 
-                cp config-repo/samconfig.toml samconfig.toml
-                
-                # Verificación del samconfig.toml
-                ls -la samconfig.toml
-                head -n 50 samconfig.toml || true
+                    cp config-repo/samconfig.toml samconfig.toml
+
+                    echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
+                    ls -la samconfig.toml
+                    head -n 50 samconfig.toml || true
+                '''
 
                 // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
                 stash name: 'src', includes: '**/*'
