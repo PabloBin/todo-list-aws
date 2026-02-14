@@ -76,7 +76,7 @@ pipeline {
                     sam --version
                     
                     # Valida el template
-                    sam validate
+                    sam validate --region "$AWS_REGION"
                     
                     # Build del proyecto SAM
                     sam build
