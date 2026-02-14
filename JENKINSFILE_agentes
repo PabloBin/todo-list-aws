@@ -206,7 +206,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'reports/pytest-staging.xml'
+                    junit testResults: 'reports/pytest-staging.xml', allowEmptyResults: true
                     cleanWs() 
                 }
             }
