@@ -20,6 +20,14 @@ pipeline {
                 // Limpiamos el workspace del agente
                 cleanWs()
                 
+                sh '''
+                    whoami
+                    hostname
+                    echo WORKSPACE=%WORKSPACE%
+                    echo NODE_NAME=%NODE_NAME%
+                    echo EXECUTOR_NUMBER=%EXECUTOR_NUMBER%
+                '''
+                
                 // Descarga el código desde la rama master
                 checkout scm
 
