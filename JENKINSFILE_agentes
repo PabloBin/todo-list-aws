@@ -100,38 +100,38 @@ pipeline {
                 
                 //Recuperamos el fichero donde hemos guardado la url
                 unstash 'baseurl'
-                
-                sh '''
-                    set -eux
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        set -eux
 
-                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                    if [ ! -d ".venv" ]; then
-                        python3 -m venv .venv
-                    fi
-                    . .venv/bin/activate
+                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                        if [ ! -d ".venv" ]; then
+                            python3 -m venv .venv
+                        fi
+                        . .venv/bin/activate
 
-                    # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
-                    pip install --upgrade pip
-                    pip install -r src/requirements.txt
-                    pip install pytest
+                        # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                        pip install --upgrade pip
+                        pip install -r src/requirements.txt
+                        pip install pytest
 
-                     # Base URL desde el deploy
-                    export BASE_URL="$(cat base_url.txt)"
-                    echo "BASE_URL=$BASE_URL"
+                         # Base URL desde el deploy
+                        export BASE_URL="$(cat base_url.txt)"
+                        echo "BASE_URL=$BASE_URL"
 
-                    # 4) Carpeta de reportes 
-                    mkdir -p reports
-                    # 5) Solo borramos los reportes de pytest
-                    rm -f reports/pytest-prod.xml
-                    
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    # 6) Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
-                    pytest -q \
-                        -k "test_api_listtodos or test_api_gettodo" \
-                        test/integration/todoApiTest.py \
-                        --junitxml=reports/pytest-prod.xml
-                    }
-                '''
+                        # 4) Carpeta de reportes 
+                        mkdir -p reports
+                        # 5) Solo borramos los reportes de pytest
+                        rm -f reports/pytest-prod.xml
+                        
+                        
+                        # 6) Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
+                        pytest -q \
+                            -k "test_api_listtodos or test_api_gettodo" \
+                            test/integration/todoApiTest.py \
+                            --junitxml=reports/pytest-prod.xml
+                    '''
+                }
             }
 
             post {
