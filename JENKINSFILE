@@ -133,7 +133,7 @@ pipeline {
 
                         # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
                         pytest -q \
-                            test/integration/todoApiTest.py 
+                            test/integration/todoApiTest.py \
                             --junitxml=reports/pytest-staging.xml
                     '''
                 }

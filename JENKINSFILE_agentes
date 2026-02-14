@@ -195,16 +195,18 @@ pipeline {
                         # 4) Carpeta de reportes 
                         mkdir -p reports
                         # 5) Solo borramos los reportes de pytest
-                        rm -f reports/pytest-integration.xml
+                        rm -f reports/pytest-staging.xml
                         
                         # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
-                        pytest -q test/integration/todoApiTest.py --junitxml=reports/pytest-integration.xml
+                        pytest -q \
+                            test/integration/todoApiTest.py \
+                            --junitxml=reports/pytest-staging.xml
                     '''
                 }
             }
             post {
                 always {
-                    junit 'reports/pytest-integration.xml'
+                    junit 'reports/pytest-staging.xml'
                     cleanWs() 
                 }
             }
