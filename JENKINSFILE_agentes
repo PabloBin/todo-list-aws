@@ -16,7 +16,6 @@ pipeline {
     }
 
     stages {
-
         stage('Get Code') {
              steps {
                 // Limpiamos el workspace del agente
@@ -70,6 +69,8 @@ pipeline {
         }
 
         stage('Deploy') {
+            // Evitar que se queden colgados jobs
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
@@ -124,7 +125,9 @@ pipeline {
         }
 
         stage('Rest Test') {
-             agent { label 'rest' }
+            agent { label 'rest' }
+            // Evitar que se queden colgados jobs
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
