@@ -35,19 +35,21 @@ pipeline {
                     echo "Branch:" && git branch -a --contains HEAD
                     echo "Last commit:" && git log -1 --oneline
                 '''
-                
-                sh '''
-                    set -eux
-                    rm -rf config-repo
-                    git clone --depth 1 --branch "$CONFIG_BRANCH" \
-                    https://github.com/PabloBin/todo-list-aws-config.git config-repo
 
-                    cp config-repo/samconfig.toml samconfig.toml
-
-                    echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
-                    ls -la samconfig.toml
-                    head -n 50 samconfig.toml || true
-                '''
+                retry(2) {
+                    sh '''
+                        set -eux
+                        rm -rf config-repo
+                        git clone --depth 1 --branch "$CONFIG_BRANCH" \
+                        https://github.com/PabloBin/todo-list-aws-config.git config-repo
+    
+                        cp config-repo/samconfig.toml samconfig.toml
+    
+                        echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
+                        ls -la samconfig.toml
+                        head -n 50 samconfig.toml || true
+                    '''
+                }
 
                 // Guardamos solo el código en el workspace para poder “llevarlo” a otros agentes
                 stash name: 'src',
@@ -88,25 +90,25 @@ pipeline {
                 sh '''
                     set -eux
 
-                    # Verificar que hay credenciales en la EC2
+                    # 1) Verificar que hay credenciales en la EC2
                     aws sts get-caller-identity
 
-                    # Verifica SAM CLI
+                    # 2) Verifica SAM CLI
                     sam --version
                     
-                    # Valida el template
+                    # 3) Valida el template
                     sam validate --region "$AWS_REGION"
                     
-                    # Build del proyecto SAM
+                    # 4) Build del proyecto SAM
                     sam build
 
-                    # Deploy a PRODUCTION según samconfig.toml (env: production)
+                    # 5) Deploy a PRODUCTION según samconfig.toml (env: production)
                     sam deploy \
                         --config-env "$SAM_ENV" \
                         --no-confirm-changeset \
                         --no-fail-on-empty-changeset
                     
-                    # Sacar BaseUrlApi del stack para la etapa Rest Test
+                    # 6) Sacar BaseUrlApi del stack para la etapa Rest Test
                     aws cloudformation describe-stacks \
                         --stack-name "$STACK_NAME" \
                         --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
@@ -150,6 +152,7 @@ pipeline {
                     sh '''
                         set -eux
 
+                        # 1) Crea entorno virtual de Python y lo activa 
                         python3 -m venv .venv
                         . .venv/bin/activate
 
@@ -158,7 +161,7 @@ pipeline {
                         pip install -r src/requirements.txt
                         pip install pytest
 
-                         # Base URL desde el deploy
+                         # 3) Base URL desde el deploy
                         export BASE_URL="$(cat base_url.txt)"
                         echo "BASE_URL=$BASE_URL"
 
