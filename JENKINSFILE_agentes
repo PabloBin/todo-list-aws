@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent none
     
     //EVITA que Jenkins haga checkout automático en cada agente/stage
     options {
@@ -16,6 +16,7 @@ pipeline {
     }
 
     stages {
+        agent { label 'jenkins' }
         stage('Get Code') {
              steps {
                 // Limpiamos el workspace del agente
@@ -69,6 +70,7 @@ pipeline {
         }
 
         stage('Deploy') {
+            agent { label 'jenkins' }
             // Evitar que se queden colgados jobs
             options { timeout(time: 5, unit: 'MINUTES') }
             steps {
