@@ -32,6 +32,8 @@ pipeline {
         }
 
         stage('Deploy') {
+            // Evitar que se queden colgados jobs
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 sh '''
                     set -eux
@@ -58,6 +60,8 @@ pipeline {
         }
 
         stage('Rest Test') {
+            // Evitar que se queden colgados jobs
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 sh '''
                     set -eux
@@ -96,7 +100,6 @@ pipeline {
                         --junitxml=reports/pytest-prod.xml
                 '''
             }
-
             post {
                 always {
                     junit testResults: 'reports/pytest-prod.xml', allowEmptyResults: true
