@@ -12,7 +12,7 @@ pipeline {
         SAM_ENV    = 'production'
         STACK_NAME = 'production-todo-list-aws'
         AWS_REGION = 'us-east-1'
-        CONFIG_BRANCH = 'staging'
+        CONFIG_BRANCH = 'production'
     }
 
     stages {
