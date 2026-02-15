@@ -118,6 +118,8 @@ pipeline {
                 }
 
                 stage('Deploy') {
+                    // Evitar que se queden colgados jobs
+                    options { timeout(time: 5, unit: 'MINUTES') }
                     steps {
                         // Limpiar para evitar restos
                         cleanWs()
@@ -172,6 +174,8 @@ pipeline {
 
         stage('Rest Test') {
             agent { label 'rest' }
+            // Evitar que se queden colgados jobs
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
                 // Limpiar para evitar restos
                 cleanWs()
@@ -187,7 +191,7 @@ pipeline {
                 //Recuperamos el fichero donde hemos guardado la url
                 unstash 'baseurl'
                 
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                     sh '''
                         set -eux
 
@@ -216,6 +220,14 @@ pipeline {
                             test/integration/todoApiTest.py \
                             --junitxml=reports/pytest-staging.xml
                     '''
+                }
+                // Utilizo un catchError (no es necesario) Pero asi eligo yo si seguir o no mediante este script 
+                // y muestro una mensaje custom para que no siga a la siguiente etapa (Promote)
+                script {
+                    def result = currentBuild.currentResult ?: (currentBuild.result ?: 'SUCCESS')
+                    if (result != 'SUCCESS') {
+                        error("Rest Test did not succeed (currentResult=${currentBuild.currentResult}). Aborting before Promote.")
+                    }
                 }
             }
             post {
@@ -276,17 +288,17 @@ pipeline {
 
                         # Intentamos merge normal
                         if ! git merge --no-ff origin/develop -m "Promote: merge develop -> master"; then
-                            echo "Merge had conflicts. Auto-resolving JENKINSFILE by keeping master version..."
+                            echo "Merge had conflicts. Auto-resolving JENKINSFILE and JENKINSFILE_agentes by keeping master version..."
 
-                            # Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master (ours)
+                            # Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master
                             git checkout --ours JENKINSFILE || true
                             git checkout --ours JENKINSFILE_agentes || true
                             
                             git add JENKINSFILE || true
                             git add JENKINSFILE_agentes || true
                             
-                            # Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí (correcto)
-                            git commit -m "Promote: merge develop -> master (keep master JENKINSFILE)"
+                            # Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí
+                            git commit -m "Promote: merge develop -> master (keep master JENKINSFILE and JENKINSFILE_agentes)"
                         fi
 
                         # push a master
@@ -295,5 +307,10 @@ pipeline {
                 }
             }
         }
+    }
+    post { 
+        always { 
+            cleanWs() 
+        } 
     }
 }
