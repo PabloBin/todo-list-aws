@@ -21,14 +21,17 @@ pipeline {
                 // Limpiamos el workspace
                 cleanWs()
                 
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/develop']],
-                    userRemoteConfigs: [[
-                        url: 'git@github.com:PabloBin/todo-list-aws.git',
-                        credentialsId: 'github-deploykey'
-                    ]]
-                ])
+                // Reintenta automaticamente el bloque 2 veces si fallase (error de red por ejemplo)
+                retry(2) {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/develop']],
+                        userRemoteConfigs: [[
+                            url: 'git@github.com:PabloBin/todo-list-aws.git',
+                            credentialsId: 'github-deploykey'
+                        ]]
+                    ])
+                }
                 
                 sh 'echo "Branch:" && git branch -a --contains HEAD'
                 sh 'echo "Last commit:" && git log -1 --oneline'
@@ -61,10 +64,11 @@ pipeline {
                         # -x: muestra comandos en el log
                         set -eux
         
-                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                         # 1) Si el entorno virtual de python no existe lo crea
                         if [ ! -d ".venv" ]; then
                             python3 -m venv .venv
                         fi
+                        # 1.1) Activa el entorno virtual de python
                         . .venv/bin/activate
               
                         # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
@@ -128,10 +132,11 @@ pipeline {
                     sh '''
                         set -eux
         
-                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                         # 1) Si el entorno virtual de python no existe lo crea
                         if [ ! -d ".venv" ]; then
                             python3 -m venv .venv
                         fi
+                        # 1.1) Activa el entorno virtual de python
                         . .venv/bin/activate
         
                         # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
