@@ -16,8 +16,8 @@ pipeline {
     }
 
     stages {
-        agent { label 'jenkins' }
         stage('Get Code') {
+        agent { label 'jenkins' }
              steps {
                 // Limpiamos el workspace del agente
                 cleanWs()
