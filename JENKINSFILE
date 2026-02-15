@@ -63,42 +63,45 @@ pipeline {
             // Evitar que se queden colgados jobs
             options { timeout(time: 5, unit: 'MINUTES') }
             steps {
-                sh '''
-                    set -eux
-
-                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                    if [ ! -d ".venv" ]; then
-                        python3 -m venv .venv
-                    fi
-                    . .venv/bin/activate
-
-                    # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
-                    pip install --upgrade pip
-                    pip install -r src/requirements.txt
-                    pip install pytest
-
-                    # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
-                    BASE_URL=$(aws cloudformation describe-stacks \
-                                --stack-name "$STACK_NAME" \
-                                --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
-                                --region "$AWS_REGION" \
-                                --output text)
-
-                    echo "BASE_URL=$BASE_URL"
-                    export BASE_URL
-
-                    # 4) Carpeta de reportes 
-                    mkdir -p reports
-                    
-                    # 5) Solo borramos los reportes de pytest
-                    rm -f reports/pytest-prod.xml
-
-                    # Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
-                    pytest -q \
-                        -k "test_api_listtodos or test_api_gettodo" \
-                        test/integration/todoApiTest.py \
-                        --junitxml=reports/pytest-prod.xml
-                '''
+                // Reintenta automaticamente el bloque 2 veces si fallase (error de red por ejemplo)
+                retry(2) {
+                    sh '''
+                        set -eux
+    
+                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                        if [ ! -d ".venv" ]; then
+                            python3 -m venv .venv
+                        fi
+                        . .venv/bin/activate
+    
+                        # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                        pip install --upgrade pip
+                        pip install -r src/requirements.txt
+                        pip install pytest
+    
+                        # 3) Obtener BASE_URL del stack (OutputKey = BaseUrlApi)
+                        BASE_URL=$(aws cloudformation describe-stacks \
+                                    --stack-name "$STACK_NAME" \
+                                    --query "Stacks[0].Outputs[?OutputKey=='BaseUrlApi'].OutputValue" \
+                                    --region "$AWS_REGION" \
+                                    --output text)
+    
+                        echo "BASE_URL=$BASE_URL"
+                        export BASE_URL
+    
+                        # 4) Carpeta de reportes 
+                        mkdir -p reports
+                        
+                        # 5) Solo borramos los reportes de pytest
+                        rm -f reports/pytest-prod.xml
+    
+                        # Ejecuta SOLO tests de integración (si falla => stage rojo y aborta pipeline)
+                        pytest -q \
+                            -k "test_api_listtodos or test_api_gettodo" \
+                            test/integration/todoApiTest.py \
+                            --junitxml=reports/pytest-prod.xml
+                    '''
+                }
             }
             post {
                 always {
