@@ -36,21 +36,34 @@ pipeline {
                 sh 'echo "Branch:" && git branch -a --contains HEAD'
                 sh 'echo "Last commit:" && git log -1 --oneline'
                 
-                sh '''
-                    set -eux
-                    rm -rf config-repo
-                    git clone --depth 1 --branch "$CONFIG_BRANCH" \
-                    https://github.com/PabloBin/todo-list-aws-config.git config-repo
+                // Reintenta automaticamente el bloque 2 veces si fallase (error de red por ejemplo)
+                retry(2) {
+                    sh '''
+                        set -eux
+                        rm -rf config-repo
+                        git clone --depth 1 --branch "$CONFIG_BRANCH" \
+                        https://github.com/PabloBin/todo-list-aws-config.git config-repo
 
-                    cp config-repo/samconfig.toml samconfig.toml
+                        cp config-repo/samconfig.toml samconfig.toml
 
-                    echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
-                    ls -la samconfig.toml
-                    head -n 50 samconfig.toml || true
-                '''
+                        echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
+                        ls -la samconfig.toml
+                        head -n 50 samconfig.toml || true
+                    '''
+                }
 
-                // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
-                stash name: 'src', includes: '**/*'
+                // Guardamos solo el código en el workspace para poder “llevarlo” a otros agentes
+                stash name: 'src',
+                    includes: '**/*',
+                    excludes: 
+                        '''
+                            **/.git/**,
+                            **/.venv/**,
+                            **/.aws-sam/**,
+                            **/reports/**,
+                            **/__pycache__/**,
+                            **/*.pyc
+                        '''
             }
             post {
                 always { 
@@ -75,35 +88,37 @@ pipeline {
                         unstash 'src'
                         
                         catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                            sh '''
-                                # -e: si algo falla, aborta
-                                # -u: error si usas variables no definidas
-                                # -x: muestra comandos en el log
-                                set -eux
+                            retry(2) {
+                                sh '''
+                                    # -e: si algo falla, aborta
+                                    # -u: error si usas variables no definidas
+                                    # -x: muestra comandos en el log
+                                    set -eux
 
-                                # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                                if [ ! -d ".venv" ]; then
-                                    python3 -m venv .venv
-                                fi
-                                . .venv/bin/activate
+                                    # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                                    if [ ! -d ".venv" ]; then
+                                        python3 -m venv .venv
+                                    fi
+                                    . .venv/bin/activate
 
-                                # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
-                                pip install --upgrade pip
-                                pip install flake8 bandit
+                                    # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
+                                    pip install --upgrade pip
+                                    pip install flake8 bandit
 
-                                # 3) Carpeta de reportes 
-                                mkdir -p reports
-                                # 4) Solo borramos los reportes de Flake8 y Bandit
-                                rm -f reports/flake8.out reports/bandit.out
+                                    # 3) Carpeta de reportes 
+                                    mkdir -p reports
+                                    # 4) Solo borramos los reportes de Flake8 y Bandit
+                                    rm -f reports/flake8.out reports/bandit.out
 
-                                # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
-                                flake8 --exit-zero src > reports/flake8.out 2>&1
+                                    # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
+                                    flake8 --exit-zero src > reports/flake8.out 2>&1
 
-                                # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
-                                bandit --exit-zero -r src \
-                                    -f custom -o reports/bandit.out \
-                                    --msg-template "{abspath}:{line}: [{test_id}] {msg}"
-                            '''
+                                    # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
+                                    bandit --exit-zero -r src \
+                                        -f custom -o reports/bandit.out \
+                                        --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                                '''
+                            }
                         }
 
                         // Publicación de resultados en Jenkins (sin quality gates => build SUCCESS siempre)
@@ -192,34 +207,36 @@ pipeline {
                 unstash 'baseurl'
                 
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    sh '''
-                        set -eux
+                    retry(2) {
+                        sh '''
+                            set -eux
 
-                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                        if [ ! -d ".venv" ]; then
-                            python3 -m venv .venv
-                        fi
-                        . .venv/bin/activate
+                            # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                            if [ ! -d ".venv" ]; then
+                                python3 -m venv .venv
+                            fi
+                            . .venv/bin/activate
 
-                        # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
-                        pip install --upgrade pip
-                        pip install -r src/requirements.txt
-                        pip install pytest
+                            # 2) Dependencias necesarias para Rest Test. Instalar/actualizar herramientas dentro del venv
+                            pip install --upgrade pip
+                            pip install -r src/requirements.txt
+                            pip install pytest
 
-                        # Base URL desde el deploy
-                        export BASE_URL="$(cat base_url.txt)"
-                        echo "BASE_URL=$BASE_URL"
+                            # Base URL desde el deploy
+                            export BASE_URL="$(cat base_url.txt)"
+                            echo "BASE_URL=$BASE_URL"
 
-                        # 4) Carpeta de reportes 
-                        mkdir -p reports
-                        # 5) Solo borramos los reportes de pytest
-                        rm -f reports/pytest-staging.xml
-                        
-                        # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
-                        pytest -q \
-                            test/integration/todoApiTest.py \
-                            --junitxml=reports/pytest-staging.xml
-                    '''
+                            # 4) Carpeta de reportes 
+                            mkdir -p reports
+                            # 5) Solo borramos los reportes de pytest
+                            rm -f reports/pytest-staging.xml
+                            
+                            # 6) Ejecutar tests de integración (si falla => stage rojo y aborta pipeline)
+                            pytest -q \
+                                test/integration/todoApiTest.py \
+                                --junitxml=reports/pytest-staging.xml
+                        '''
+                    }
                 }
                 // Utilizo un catchError (no es necesario) Pero asi eligo yo si seguir o no mediante este script 
                 // y muestro una mensaje custom para que no siga a la siguiente etapa (Promote)
