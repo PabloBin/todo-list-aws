@@ -11,6 +11,7 @@ pipeline {
         SAM_ENV    = 'production'
         STACK_NAME = 'production-todo-list-aws'
         AWS_REGION = 'us-east-1'
+        CONFIG_BRANCH = 'production'
     }
 
     stages {
@@ -31,6 +32,21 @@ pipeline {
                     echo "Branch:" && git branch -a --contains HEAD
                     echo "Last commit:" && git log -1 --oneline
                 '''
+
+                retry(2) {
+                    sh '''
+                        set -eux
+                        rm -rf config-repo
+                        git clone --depth 1 --branch "$CONFIG_BRANCH" \
+                        https://github.com/PabloBin/todo-list-aws-config.git config-repo
+    
+                        cp config-repo/samconfig.toml samconfig.toml
+    
+                        echo "samconfig.toml (desde config-repo/$CONFIG_BRANCH):"
+                        ls -la samconfig.toml
+                        head -n 50 samconfig.toml || true
+                    '''
+                }
             }
         }
 
