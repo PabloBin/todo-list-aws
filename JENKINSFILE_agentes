@@ -48,7 +48,7 @@ pipeline {
                     head -n 50 samconfig.toml || true
                 '''
 
-                // Guardamos TODO el workspace para poder “llevarlo” a otros agentes
+                // Guardamos solo el código en el workspace para poder “llevarlo” a otros agentes
                 stash name: 'src',
                     includes: '**/*',
                     excludes: 
@@ -143,7 +143,8 @@ pipeline {
                 //Recuperamos el fichero donde hemos guardado la url
                 unstash 'baseurl'
                 
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                // Reintenta automaticamente el bloque 2 veces si fallase (error de red por ejemplo)
+                retry(2) {
                     sh '''
                         set -eux
 
