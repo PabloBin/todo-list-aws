@@ -19,9 +19,12 @@ pipeline {
             steps {
                  // Limpiamos el workspace del agente
                 cleanWs()
-                
-                // Descarga el código desde la rama master
-                checkout scm
+
+                // Reintenta automaticamente el bloque 2 veces si fallase (error de red por ejemplo)
+                retry(2) {
+                    // Descarga el código desde la rama master
+                    checkout scm
+                }
 
                 sh '''
                     set -eux
