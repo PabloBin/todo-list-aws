@@ -53,38 +53,37 @@ pipeline {
        
         stage('Static Test') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
-                    retry(2) {
-                        sh '''
-                            # -e: si algo falla, aborta
-                            # -u: error si usas variables no definidas
-                            # -x: muestra comandos en el log
-                            set -eux
-            
-                            # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
-                            if [ ! -d ".venv" ]; then
-                                python3 -m venv .venv
-                            fi
-                            . .venv/bin/activate
-                  
-                            # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
-                            pip install --upgrade pip
-                            pip install flake8 bandit
-            
-                            # 3) Carpeta de reportes 
-                            mkdir -p reports
-                            # 4) Solo borramos los reportes de Flake8 y Bandit
-                            rm -f reports/flake8.out reports/bandit.out
-            
-                            # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
-                            flake8 --exit-zero src > reports/flake8.out 2>&1
-            
-                            # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
-                            bandit --exit-zero -r src \
-                                -f custom -o reports/bandit.out \
-                                --msg-template "{abspath}:{line}: [{test_id}] {msg}"
-                        '''
-                    }
+                
+                retry(2) {
+                    sh '''
+                        # -e: si algo falla, aborta
+                        # -u: error si usas variables no definidas
+                        # -x: muestra comandos en el log
+                        set -eux
+        
+                        # 1) VENV reutilizable (evita reinstalar Python tools en cada build si el workspace se mantiene)
+                        if [ ! -d ".venv" ]; then
+                            python3 -m venv .venv
+                        fi
+                        . .venv/bin/activate
+              
+                        # 2) Dependencias necesarias para Static Test. Instalar/actualizar herramientas dentro del venv
+                        pip install --upgrade pip
+                        pip install flake8 bandit
+        
+                        # 3) Carpeta de reportes 
+                        mkdir -p reports
+                        # 4) Solo borramos los reportes de Flake8 y Bandit
+                        rm -f reports/flake8.out reports/bandit.out
+        
+                        # 5) Flake8 (solo src, no bloqueante, salida estándar a fichero)
+                        flake8 --exit-zero src > reports/flake8.out 2>&1
+        
+                        # 6) Bandit (solo src, no bloqueante, salida “custom” para que pyLint lo pinte)
+                        bandit --exit-zero -r src \
+                            -f custom -o reports/bandit.out \
+                            --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                    '''
                 }
                 
                 // Publicación de resultados en Jenkins (sin quality gates => build SUCCESS siempre)
@@ -100,19 +99,19 @@ pipeline {
                 sh '''
                     set -eux
     
-                    # Verificar que hay credenciales en la EC2
+                    # 1) Verificar que hay credenciales en la EC2
                     aws sts get-caller-identity
 
-                    # Verifica SAM CLI
+                    # 2) Verifica SAM CLI
                     sam --version
                     
-                    # Valida el template
+                    # 3) Valida el template
                     sam validate --region "$AWS_REGION"
 
-                    # Build del proyecto SAM
+                    # 4) Build del proyecto SAM
                     sam build
     
-                    # Deploy a PRODUCTION según samconfig.toml (env: staging)
+                    # 5) Deploy a PRODUCTION según samconfig.toml (env: staging)
                     sam deploy \
                         --config-env "$SAM_ENV" \
                         --no-confirm-changeset \
@@ -193,33 +192,33 @@ pipeline {
                     sh '''
                         set -eux
         
-                        # Defino el autor e email del commit de merge
+                        # 1) Defino el autor e email del commit de merge
                         git config user.name  "jenkins"
                         git config user.email "pablo.conde789@comunidadunir.net"
 
-                        # Trae todas las ramas remotas (develop/master) y limpia ramas borradas
+                        # 2) Trae todas las ramas remotas (develop/master) y limpia ramas borradas
                         # Esto evita merges con refs antiguas
                         git fetch origin +refs/heads/*:refs/remotes/origin/* --prune
         
-                        # Nos ponemos en master limpio
+                        # 3) Nos ponemos en master limpio
                         git checkout -B master origin/master
         
-                        # Intentamos merge normal
+                        # 4) Intentamos merge normal
                         if ! git merge --no-ff origin/develop -m "Promote: merge develop -> master"; then
                             echo "Merge had conflicts. Auto-resolving JENKINSFILE and JENKINSFILE_agentes by keeping master version..."
         
-                            # Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master
+                            # 4.1) Si el conflicto es en JENKINSFILE, forzamos quedarnos con el de master
                             git checkout --ours JENKINSFILE || true
                             git checkout --ours JENKINSFILE_agentes || true
                   
                             git add JENKINSFILE || true
                             git add JENKINSFILE_agentes || true
                   
-                            # Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí (correcto)
+                            # 4.2) Si hubiera quedado el repo aún en estado conflictivo por otras cosas, fallará aquí (correcto)
                             git commit -m "Promote: merge develop -> master (keep master JENKINSFILE and JENKINSFILE_agentes)"
                         fi
         
-                        # Empujamos master
+                        # 5? Empujamos master
                         git push origin master
                     '''
                 }
